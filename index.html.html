@@ -1793,6 +1793,16 @@
     .cloud-share .cloud-lead{margin:0 0 8px;}
     .cloud-share .cloud-btns{margin-top:10px;}
     .cloud-link{width:100%; max-width:100%; font-size:12.5px; color:var(--ink-soft);}
+    .cloud-team-t{border-collapse:collapse; margin:4px 0 12px; font-size:13px;}
+    .cloud-team-t td{padding:5px 14px 5px 0; vertical-align:middle;}
+    .cloud-team-t .ct-mail{font-weight:600; color:var(--ink); overflow-wrap:anywhere;}
+    .cloud-team-t{width:auto;}
+    .cloud-team-t select{width:auto; min-width:110px;}
+    .cloud-team .cloud-form{margin-bottom:6px;}
+    /* Sales: no costing, expenses or Settings (the card to sign in stays) */
+    body.role-sales .tab[data-tab="bom"], body.role-sales .tab[data-tab="doorcost"], body.role-sales .tab[data-tab="expenses"]{display:none !important;}
+    body.role-sales #tab-settings > .upvc-only, body.role-sales #tab-settings > .doors-only, body.role-sales #tab-settings .panel-head .lead, body.role-sales #tab-settings .panel-head .how{display:none !important;}
+    body.role-sales [data-role-locked]{cursor:not-allowed; background:var(--panel-alt) !important; color:var(--ink-soft) !important; opacity:1;}
     .cloud-card .field-note{max-width:78ch;}
     @media (max-width: 700px){ .cloud-form .pq-f, .cloud-form .pq-f.cloud-wide{flex:1 1 100%;} .cloud-form .pq-f input, .cloud-form .pq-f.cloud-wide input{width:100%;} .cloud-form .btn{flex:1 1 100%;} .cloud-btns .btn{flex:1 1 auto;} }
     /* the Overview's spending card (as many columns as categories with spending, and last month) */
@@ -10259,7 +10269,7 @@
   var GO_TABS = [['schedule', 'Schedule'], ['quote', 'Quote'], ['planning', 'Plan'], ['payments', 'Payments'], ['orders', 'Orders'], ['expenses', 'Expenses']];
   function goLinks(id, skip){
     var skipSched = skip !== 'planning';                       // Orders has Open, and on Payments the name opens the order
-    return '<span class="go-links">'+GO_TABS.filter(function(x){ return x[0] !== skip && !(skipSched && x[0] === 'schedule'); }).map(function(x){
+    return '<span class="go-links">'+GO_TABS.filter(function(x){ return x[0] !== skip && !(skipSched && x[0] === 'schedule') && !roleHidden(x[0]); }).map(function(x){
       return '<button class="link-btn go-link" data-go="'+x[0]+'" data-go-id="'+esc(id)+'" title="This order on '+x[1]+'">'+x[1]+' ›</button>'; }).join('')+'</span>';
   }
   function goFlash(el){ if(!el || !el.classList) return; el.classList.add('go-flash'); setTimeout(function(){ el.classList.remove('go-flash'); }, 1800); }
@@ -10271,6 +10281,7 @@
   // at, the tab opens at its top
   function goTo(id, tab, x){
     x = x || {};
+    if(roleHidden(tab)){ toast('Only an Admin can open that.', true); return; }
     id = id || order.plan.id;
     if(ORDER_TABS.indexOf(tab) >= 0 && id !== order.plan.id && findOrder(id)) switchToOrder(id);
     var twin = KIND_TAB[isDoorOrder(order) ? 'doors' : 'upvc'][tab]; if(twin && ORDER_TABS.indexOf(tab) >= 0) tab = twin;
@@ -10319,6 +10330,7 @@
   // opens the other tab at the very box (or line), highlighted
   function attrQ(v){ return String(v === undefined || v === null ? '' : v).replace(/["\\]/g, '\\$&'); }
   function jumpTo(d){
+    if(roleSales()){ toast('Only an Admin can open that.', true); return; }
     var dk = isDoorOrder(order), where = d.jump, tab = where === 'costing' ? (dk ? 'doorcost' : 'bom') : 'settings';
     var tb = document.querySelector && document.querySelector('.tab[data-tab="'+tab+'"]'); if(tb && tb.click) tb.click();
     var box = document.getElementById(where === 'costing' ? (dk ? 'dc-detail' : 'costing-detail') : where); if(!box || !box.querySelector) return;
@@ -10446,7 +10458,7 @@
     };
     var costCard = function(x, V){ return card(x, V.costValue === 'not priced' ? 'cost not priced yet' : 'cost '+V.costValue, V.profitValue && V.profitValue !== '—' ? 'profit '+V.profitValue : 'type your prices to see the profit', V.costWarn ? 'warn' : ''); };
     var sum = function(obj, f){ return Object.keys(obj).reduce(function(a, k){ return a + f(obj[k]); }, 0); };
-    var html = FLOW[doors ? 'doors' : 'upvc'].filter(function(x){ return x[0] !== key; }).map(function(x){
+    var html = FLOW[doors ? 'doors' : 'upvc'].filter(function(x){ return x[0] !== key && !roleHidden(x[0]); }).map(function(x){
       if(x[0] === 'schedule'){ var rows = sheetRows(), pcs = rows.reduce(function(a, r){ return a + num(r.w.qty); }, 0); return card(x, pl(pcs, 'window'), pl(rows.length, 'line')+' · '+fmt(Q.area, 1)+' sqft'); }
       if(x[0] === 'doors') return card(x, pl(dm().doors, 'door'), pl(dm().lines.length, 'line'));
       if(x[0] === 'bom') return costCard(x, costCardsText(costingModel(), money));
@@ -10579,7 +10591,7 @@
       else if(r.late) add(0, 'warn', 'Late', nm(o)+' will be ready '+dShort(r.ready)+' — '+pl(r.lateDays, 'day')+' after its due date, '+dShort(o.plan.due), 'planning', o.plan.id, 'Planning');
     });
     overdue.forEach(function(x){ var o = x.entry.order; add(0, 'wallet', 'Overdue', nm(o)+' — '+money(x.bal)+' was due '+dShort(dueOf(x)), 'payments', o.plan.id, 'Remind'); });
-    var SO = staffOverdue();
+    var SO = roleSales() ? {n:0} : staffOverdue();
     if(SO.n) add(1, 'wallet', 'Salaries', '<b>'+money(SO.sum)+'</b> of salary from '+MONTH_L[(now.getMonth() + 11) % 12]+' or before still to pay, to '+pl(SO.n, 'worker'), 'expenses', 'staff', 'Salaries');
     PY.owing.forEach(function(x){ if(x.manual || overdue.indexOf(x) >= 0) return; var o = x.entry.order; if(o.plan.status === 'Delivered') add(1, 'wallet', 'To collect', nm(o)+' is delivered — '+money(x.bal)+' still to collect', 'payments', o.plan.id, 'Remind'); });
     inHand.forEach(function(r){ var o = r.entry.order, x = payOf[o.plan.id]; if(o.plan.status !== 'Ready' && x && x.value > 0.5 && !(x.adv > 0) && overdue.indexOf(x) < 0) add(1, 'wallet', 'No advance', nm(o)+' is '+o.plan.status.toLowerCase()+' with no advance received', 'payments', o.plan.id, 'Payments'); });
@@ -10693,6 +10705,7 @@
   }
   // the three things that make the tool yours; the guide goes once all three are done
   function homeSetupHtml(doors){
+    if(roleSales()) return '';
     var C = settings.costing || {}, rated = num(C.customerRate) > 0 || Object.keys(C.kindRate || {}).some(function(k){ return num(C.kindRate[k]) > 0; }) || C.priceBy === 'markup';
     var anyOrder = everyOrder().some(function(e){ return (e.windows || []).some(isComplete) || doorList(e.order).some(doorComplete); });
     var steps = [
@@ -10710,7 +10723,7 @@
   }
   // the work lives in this browser: a nudge to back it up every week or so
   function homeBackupHtml(){
-    if(cloudLive() && cloudState.status === 'ok') return '';
+    if((cloudLive() && cloudState.status === 'ok') || roleSales()) return '';
     var any = everyOrder().some(function(e){ return (e.windows || []).some(isComplete) || doorList(e.order).some(doorComplete); }) || expenses.length > 0 || expWorkers.length > 0;
     if(!any) return '';
     var days = backupAt ? calDaysBetween(backupAt, isoToday()) : -1;
@@ -12278,6 +12291,7 @@
   }
   // the Overview: the month's spending across the whole business, by category
   function homeSpendHtml(){
+    if(roleSales()) return '';
     var ym = expMonthNow(), pm = monthAdd(ym, -1), t = expTotals(expenses.filter(function(x){ return x.date.slice(0, 7) === ym; }));
     var pt = expTotals(expenses.filter(function(x){ return x.date.slice(0, 7) === pm; }));
     var mname = MONTH_L[parseInt(ym.slice(5, 7), 10) - 1], pname = MONTH_L[parseInt(pm.slice(5, 7), 10) - 1];
@@ -12610,6 +12624,14 @@
   // The project's address, its key and the sign-in are kept in this browser only — never in the file.
   var CLOUD_KEY = 'upvc-cloud-v1';
   var CLOUD_TABLES = ['app_settings', 'workers', 'customers', 'orders', 'expenses'];     // settings first: the expenses name its categories
+  // Roles. Admin: everything, both ways. Sales: sends orders and customers added by hand; receives those and a copy of the
+  // Settings without your purchase prices — never the expenses, salaries, staff or the full Settings (the database refuses them).
+  var SALES_PUSH = ['customers', 'orders'], SALES_PULL = ['app_settings', 'customers', 'orders'];
+  var ROLE_HIDE_TABS = ['bom', 'doorcost', 'expenses'], ROLE_HIDE_PDF = ['costing', 'dcosting', 'expenses'];
+  function roleSales(){ return !!(cloudReady && cloud && cloud.role === 'sales'); }
+  function roleHidden(tab){ return roleSales() && ROLE_HIDE_TABS.indexOf(tab) >= 0; }
+  function cloudPushTables(){ return roleSales() ? SALES_PUSH : CLOUD_TABLES; }
+  function cloudPullTables(){ return roleSales() ? SALES_PULL : CLOUD_TABLES; }
   var CLOUD_COLS = {orders:['kind', 'customer', 'phone', 'quote_no', 'status', 'due_date'],
     expenses:['spent_on', 'amount', 'category', 'item', 'paid_to', 'pay_mode', 'order_id', 'worker_id'],
     workers:['name', 'role', 'phone'], customers:['customer', 'phone'], app_settings:[]};
@@ -12628,6 +12650,7 @@
       o.email = typeof c.email === 'string' ? c.email : '';
       if(c.sess && typeof c.sess.at === 'string' && typeof c.sess.rt === 'string') o.sess = {at:c.sess.at, rt:c.sess.rt, exp:+c.sess.exp || 0, email:String(c.sess.email || '')};
       o.team = c.team === true ? true : c.team === false ? false : null; o.joined = !!c.joined; o.fromLink = !!c.fromLink;
+      o.role = c.role === 'admin' || c.role === 'sales' ? c.role : null;
       ['cur', 'known', 'pend'].forEach(function(k){ if(c[k] && typeof c[k] === 'object' && !Array.isArray(c[k])) o[k] = c[k]; });
       return o;
     }catch(e){ return null; }
@@ -12721,16 +12744,36 @@
       put('orders', id, {order:e.order, windows:ws});
     });
     manualPays.forEach(function(m){ put('customers', m.plan.id, m); });
+    if(roleSales()) return R;                                              // Sales: nothing else of theirs goes online
     expWorkers.forEach(function(w){ put('workers', w.id, w); });
     expenses.forEach(function(x){ put('expenses', x.id, packExpense(x)); });
     put('app_settings', 'settings', settings);
     put('app_settings', 'expense-cats', {cats:expCustomCats});
+    put('app_settings', 'settings-public', cloudPublicSettings());
     return R;
+  }
+  // the Settings as Sales receive them: everything they need for windows, doors, cutting and quotes, without your purchase
+  // prices and costs (pricing by cost + profit needs the costs, so then they are kept)
+  function cloudPublicSettings(){
+    var s = JSON.parse(JSON.stringify(settings)), C = s.costing || (s.costing = {});
+    if(C.priceBy === 'markup') return s;
+    ['profilePrices', 'glassPrices', 'meshPrices'].forEach(function(k){ s[k] = {}; });
+    (s.hardware || []).forEach(function(h){ if(h && typeof h === 'object'){ h.price = 0; h.screwPrice = 0; } });
+    ['profile', 'glass', 'mesh', 'hardware', 'screw'].forEach(function(k){ C[k] = {}; });
+    ['fabPerSqft', 'installPerSqft', 'overheadPct', 'profitPct'].forEach(function(k){ C[k] = 0; });
+    var D = s.doors;
+    if(D && typeof D === 'object'){
+      Object.keys(D.kinds || {}).forEach(function(k){ if(D.kinds[k]){ D.kinds[k].frameRate = 0; D.kinds[k].boardRate = 0; } });
+      (D.finishes || []).forEach(function(f){ if(f) f.rate = 0; });
+      (D.hardware || []).forEach(function(h){ if(h) h.price = 0; });
+      D.fab = 0; D.install = 0; D.overheadPct = 0;
+    }
+    return s;
   }
   // what changed here since the online copy: each changed or removed record waits to be sent, with the time it was seen
   function cloudScan(){
     var R = cloudRows(), now = Date.now(), n = 0;
-    CLOUD_TABLES.forEach(function(t){
+    cloudPushTables().forEach(function(t){
       var K = cloud.known[t] || (cloud.known[t] = {}), P = cloud.pend[t] || (cloud.pend[t] = {});
       Object.keys(R[t]).forEach(function(id){ var k = K[id]; if(k && k[0] === R[t][id].h) delete P[id]; else if(!P[id]) P[id] = now; });
       Object.keys(K).forEach(function(id){ if(K[id][0] !== '-' && !R[t][id] && !P[id]) P[id] = now; });
@@ -12740,7 +12783,7 @@
     cloudState.pending = n;
     return {R:R, n:n};
   }
-  function cloudPendingCount(){ var n = 0; if(cloud) CLOUD_TABLES.forEach(function(t){ n += Object.keys(cloud.pend[t] || {}).length; }); return n; }
+  function cloudPendingCount(){ var n = 0; if(cloud) cloudPushTables().forEach(function(t){ n += Object.keys(cloud.pend[t] || {}).length; }); return n; }
   // a record as a row: the whole record in data, its main details in columns of their own (a removed one is only marked)
   function cloudRowOut(t, id, d, at){
     var row = {id:id}, v = {};
@@ -12757,7 +12800,7 @@
   function cloudPush(S, opts){
     opts = opts || {};
     var jobs = [], tombs = [];
-    CLOUD_TABLES.forEach(function(t){
+    cloudPushTables().forEach(function(t){
       var P = cloud.pend[t] || {}, ids = Object.keys(P); if(!ids.length) return;
       // records kept, then records removed (just marked: the row keeps its details and its last copy, to look up)
       [true, false].forEach(function(live){
@@ -12820,7 +12863,7 @@
   function cloudPull(opts){
     opts = opts || {};
     var got = {};
-    return CLOUD_TABLES.reduce(function(p, t){
+    return cloudPullTables().reduce(function(p, t){
       return p.then(function(){
         var cur = !opts.full && cloud.cur[t], since = cur ? new Date(Date.parse(cur) - 120000).toISOString() : '';
         return cloudFetch(t, since).then(function(rows){ got[t] = rows; });
@@ -12833,7 +12876,7 @@
   // the rows from online into this browser: the later change wins; a change made here and not yet sent is kept if it is later
   function cloudApply(got, opts){
     var changed = {}, n = 0;
-    CLOUD_TABLES.forEach(function(t){
+    cloudPullTables().forEach(function(t){
       var K = cloud.known[t] || (cloud.known[t] = {}), P = cloud.pend[t] || (cloud.pend[t] = {}), maxT = cloud.cur[t] || '';
       (got[t] || []).forEach(function(row){
         if(!maxT || Date.parse(row.updated_at) > Date.parse(maxT)) maxT = row.updated_at;
@@ -12859,7 +12902,8 @@
     var d = row.deleted ? null : row.data, id = row.id;
     if(t === 'app_settings'){
       if(!d || typeof d !== 'object') return;
-      if(id === 'settings'){ settings = mergeSettings(JSON.parse(JSON.stringify(d))); }
+      if(id === 'settings'){ if(!roleSales()) settings = mergeSettings(JSON.parse(JSON.stringify(d))); }
+      else if(id === 'settings-public'){ if(roleSales()) settings = mergeSettings(JSON.parse(JSON.stringify(d))); }
       else if(id === 'expense-cats'){ expCustomCats = cleanExpCats(d.cats); expBuildCats(); }
       return;
     }
@@ -12991,9 +13035,26 @@
     }, function(e){ throw e && e.net ? {msg:'Can’t reach '+cloudHost()+'. Check the Project URL and the internet connection.'+(pageFramed ? ' Inside Claude, the page may not be allowed to reach outside sites — open your own copy of the tool (see the guide).' : '')} : e; });
   }
   function cloudCheckTeam(){
-    return cloudReq('POST', '/rest/v1/rpc/is_team', {}).then(function(r){
-      if(!r.ok){ var e = cloudHttpErr(r); if(e.setup) throw {msg:'The tables aren’t in this Supabase project yet. Run the setup SQL in Supabase (SQL Editor) first, then connect again.'}; throw e.team ? {team:true} : {msg:'Could not check the team list: '+e.message}; }
-      cloud.team = r.json === true; cloudSave();
+    var old = function(){
+      return cloudReq('POST', '/rest/v1/rpc/is_team', {}).then(function(r){
+        if(!r.ok){ var e = cloudHttpErr(r); if(e.setup) throw {msg:'The tables aren’t in this Supabase project yet. Run the setup SQL in Supabase (SQL Editor) first, then connect again.'}; throw e.team ? {team:true} : {msg:'Could not check the team list: '+e.message}; }
+        return r.json === true ? 'admin' : null;
+      });
+    };
+    return cloudReq('POST', '/rest/v1/rpc/my_role', {}).then(function(r){
+      if(!r.ok){ var e = cloudHttpErr(r); if(e.setup) return old(); throw e.team ? {team:true} : {msg:'Could not check the team list: '+e.message}; }
+      return r.json === 'admin' || r.json === 'sales' ? r.json : null;
+    }).then(function(role){
+      var was = cloud.role;
+      if(was === 'sales' && !role){                                         // taken off the team: the orders leave this device too
+        ['upvc-nesting-state-v1', EXP_KEY, 'upvc-figs-v1'].forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+        cloud.team = false; cloud.role = null; cloud.joined = false; cloud.known = {}; cloud.pend = {}; cloud.cur = {}; cloudSave();
+        try{ location.reload(); }catch(e){}
+        return false;
+      }
+      cloud.team = !!role; cloud.role = role || null;
+      if(was && role && was !== role){ cloud.known = {}; cloud.pend = {}; cloud.cur = {}; cloud.joined = false; }   // a new role: joined afresh
+      cloudSave(); roleApply();
       return cloud.team;
     }).catch(function(e){ if(e && e.team){ cloud.team = false; cloudSave(); return false; } throw e; });
   }
@@ -13008,7 +13069,7 @@
   // every id online (and whether it was removed), to compare with this browser
   function cloudRemoteIds(){
     var rem = {};
-    return CLOUD_TABLES.reduce(function(p, t){
+    return cloudPullTables().reduce(function(p, t){
       return p.then(function(){
         rem[t] = {};
         var page = function(off){
@@ -13029,10 +13090,10 @@
       var R = cloudRows(), onl = cloudCounts(rem), mineOnly = {}, anyOnline = false, anyMine = false;
       CLOUD_TABLES.forEach(function(t){
         if(onl[t]) anyOnline = true;
-        mineOnly[t] = t === 'app_settings' ? 0 : Object.keys(R[t]).filter(function(id){ return !(id in rem[t]); }).length;
+        mineOnly[t] = t === 'app_settings' || cloudPushTables().indexOf(t) < 0 ? 0 : Object.keys(R[t]).filter(function(id){ return !(id in (rem[t] || {})); }).length;
         if(mineOnly[t]) anyMine = true;
       });
-      if(!anyOnline && !Object.keys(rem.app_settings).length) return 'upload';
+      if(!anyOnline && !Object.keys(rem.app_settings || {}).length) return 'upload';
       if(!anyMine) return 'online';
       var nMine = Object.keys(mineOnly).reduce(function(a, t){ return a + mineOnly[t]; }, 0);
       return pageAsk({title:'Your online copy already has data',
@@ -13100,7 +13161,25 @@
       if(focusPw){ var p = document.getElementById('cloud-pw'); if(p && p.focus) p.focus(); }
     });
   }
+  function cloudWipeDevice(){
+    ['upvc-nesting-state-v1', EXP_KEY, 'upvc-figs-v1'].forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+    cloud.sess = null; cloud.team = null; cloud.role = null; cloud.joined = false; cloud.known = {}; cloud.pend = {}; cloud.cur = {};
+    cloudSave();
+    try{ location.reload(); }catch(e){}
+  }
+  function cloudSalesLeave(then){
+    var go = function(){
+      var n = cloudPendingCount();
+      return pageAsk({title:'Sign out of this device?', html:'<p>The orders on this device are removed from it; they stay online for your team.</p>'
+          + (n ? '<p><b>'+plN(n, 'change')+' made here '+(n === 1 ? 'hasn’t' : 'haven’t')+' gone online yet</b> and would be lost. Connect to the internet first to keep '+(n === 1 ? 'it' : 'them')+'.</p>' : ''),
+        choices:[{key:'cancel', label:'Cancel'}, {key:'go', label:'Sign out', danger:true}], focus:'cancel'})
+        .then(function(k){ if(k === 'go') then(); });
+    };
+    if(cloudLive()) return cloudSync({force:true}).then(go, go);
+    return go();
+  }
   function cloudSignOut(){
+    if(roleSales() && cloud.sess && !cloudSignOut.sure){ cloudSalesLeave(function(){ cloudSignOut.sure = true; try{ cloudSignOut(); } finally { cloudSignOut.sure = false; } cloudWipeDevice(); }); return; }
     var s = cloud && cloud.sess;
     if(s) fetch(cloudBase()+'/auth/v1/logout', {method:'POST', headers:{'apikey':cloud.key, 'Authorization':'Bearer '+s.at}}).catch(function(){});
     if(cloud){ cloud.sess = null; cloud.team = null; cloudSave(); }
@@ -13118,11 +13197,15 @@
     }).then(function(){ cloudState.busy = false; cloudSave(); cloudShow(true); homeSoon(); });
   }
   function cloudForget(){
-    pageAsk({title:'Disconnect this Supabase project?', html:'<p>This browser stops copying your work to <b>'+esc(cloudHost())+'</b>. Your data stays here, and the online copy stays in Supabase.</p>',
+    pageAsk({title:'Disconnect this Supabase project?', html:roleSales() ? '<p>This device stops using <b>'+esc(cloudHost())+'</b>, and the orders on it are removed from it. They stay online for your team.</p>'
+        : '<p>This browser stops copying your work to <b>'+esc(cloudHost())+'</b>. Your data stays here, and the online copy stays in Supabase.</p>',
       choices:[{key:'cancel', label:'Cancel'}, {key:'go', label:'Disconnect', danger:true}], focus:'cancel'}).then(function(k){
       if(k !== 'go') return;
-      if(cloud && cloud.sess) cloudSignOut();
+      var wipe = roleSales();
+      if(cloud && cloud.sess){ cloudSignOut.sure = true; try{ cloudSignOut(); } finally { cloudSignOut.sure = false; } }
+      if(wipe){ ['upvc-nesting-state-v1', EXP_KEY, 'upvc-figs-v1'].forEach(function(x){ try{ localStorage.removeItem(x); }catch(e){} }); }
       cloud = null; try{ localStorage.removeItem(CLOUD_KEY); }catch(e){}
+      if(wipe){ try{ location.reload(); }catch(e){} return; }
       cloudState = {status:'off', busy:false, msg:'Disconnected. Your work is kept in this browser.', err:false, prog:'', lastOk:0, lastPull:0, pending:0};
       cloudShow(true); renderBrand(); homeSoon();
     });
@@ -13185,14 +13268,16 @@
         + '<button type="submit" class="btn btn-primary" id="cloud-go"'+(cloudState.busy ? ' disabled' : '')+'>'+(cloudState.busy ? 'Signing in…' : 'Sign in')+'</button></form>'
         + '<div class="cloud-btns"><button type="button" class="link-btn" data-cloud="forget">Use another Supabase project</button></div>';
     } else if(cloud.team === false || st === 'notteam'){
-      var line = "insert into public.team (email) values ('"+String(email).toLowerCase().replace(/'/g, "''")+"');";
-      body = '<p class="cloud-lead">Signed in as <b>'+esc(email)+'</b>, but this e-mail isn’t on the team list of your database, so it can’t see or save the data. In Supabase, open the SQL Editor and run:</p>'
+      var line = "insert into public.team (email, role) values ('"+String(email).toLowerCase().replace(/'/g, "''")+"', 'sales');";
+      body = '<p class="cloud-lead">Signed in as <b>'+esc(email)+'</b>, but this e-mail isn’t on the team list of your database, so it can’t see or save the data. Ask your Admin to add it in <b>Settings → Online copy → Team</b>. Or, in Supabase’s SQL Editor, run (use <b>admin</b> instead of sales for full access):</p>'
         + '<code class="cloud-sql">'+esc(line)+'</code>'
         + '<div class="cloud-btns"><button type="button" class="btn btn-primary btn-sm" data-cloud="recheck">Check again</button><button type="button" class="btn btn-ghost btn-sm" data-cloud="copy" data-sql="'+esc(line)+'">Copy</button><button type="button" class="btn btn-ghost btn-sm" data-cloud="signout">Sign out</button></div>';
     } else {
       body = '<div class="cloud-facts" id="cloud-facts"></div>'
-        + '<div class="cloud-btns"><button type="button" class="btn btn-primary btn-sm" data-cloud="sync">Sync now</button><button type="button" class="btn btn-ghost btn-sm" data-cloud="share" aria-expanded="'+(cloudShareOpen ? 'true' : 'false')+'">Connect another device</button><button type="button" class="btn btn-ghost btn-sm" data-cloud="signout">Sign out</button><button type="button" class="link-btn" data-cloud="forget">Disconnect</button></div>'
-        + (cloudShareOpen ? cloudShareHtml(email) : '')
+        + '<div class="cloud-btns"><button type="button" class="btn btn-primary btn-sm" data-cloud="sync">Sync now</button><button type="button" class="btn btn-ghost btn-sm" data-cloud="share" aria-expanded="'+(cloudShareOpen ? 'true' : 'false')+'">Connect another device</button>'
+        + (roleSales() ? '' : '<button type="button" class="btn btn-ghost btn-sm" data-cloud="team" aria-expanded="'+(cloudTeamOpen ? 'true' : 'false')+'">Team</button>')
+        + '<button type="button" class="btn btn-ghost btn-sm" data-cloud="signout">Sign out</button><button type="button" class="link-btn" data-cloud="forget">Disconnect</button></div>'
+        + (cloudShareOpen ? cloudShareHtml(email) : '') + (cloudTeamOpen && !roleSales() ? cloudTeamHtml() : '')
         + '<p class="field-note">A change made here goes online within a few seconds. Changes made on your other devices come in every minute, and whenever you come back to this page. If the same record was changed on two devices, the later change is kept.</p>';
     }
     el.innerHTML = '<div class="cloud-h"><h3>Online copy <span>— your Supabase database</span></h3><span class="cloud-pill" id="cloud-pill"></span></div>'
@@ -13208,10 +13293,62 @@
     var f = el.querySelector('#cloud-facts');
     if(f && cloud){
       var em = (cloud.sess && cloud.sess.email) || cloud.email || '';
-      f.innerHTML = '<span>Signed in as <b>'+esc(em)+'</b></span><span>Project <b>'+esc(cloudHost())+'</b></span>'
+      f.innerHTML = '<span>Signed in as <b>'+esc(em)+'</b>'+(cloud.role ? ' · '+(cloud.role === 'sales' ? 'Sales' : 'Admin') : '')+'</span><span>Project <b>'+esc(cloudHost())+'</b></span>'
         + '<span>Last synced <b>'+(s.lastOk ? esc(cloudWhen(s.lastOk)) : '—')+'</b></span>'
         + (s.pending ? '<span><b>'+plN(s.pending, 'change')+'</b> waiting to go online</span>' : '');
     }
+  }
+  // ---- the team (Admin): who may sign in, and as what ----
+  var cloudTeamOpen = false, cloudTeam = null, cloudTeamMsg = '', cloudTeamErr = false;
+  function cloudTeamLoad(){
+    cloudTeam = null; cloudShow(true);
+    return cloudReq('POST', '/rest/v1/rpc/team_list', {}).then(function(r){
+      if(!r.ok){ var e = cloudHttpErr(r); cloudTeam = []; cloudTeamMsg = e.setup ? 'Run the roles update in Supabase first (supabase_roles_update.sql, in the SQL Editor).' : 'Could not read the team: '+e.message; cloudTeamErr = true; }
+      else cloudTeam = Array.isArray(r.json) ? r.json : [];
+      cloudShow(true);
+    }, function(e){ cloudTeam = []; cloudTeamMsg = cloudFailText(e); cloudTeamErr = true; cloudShow(true); });
+  }
+  function cloudTeamCall(fn, body, done){
+    cloudTeamMsg = ''; cloudTeamErr = false;
+    return cloudReq('POST', '/rest/v1/rpc/'+fn, body).then(function(r){
+      if(!r.ok){ cloudTeamMsg = cloudErrText(r.json, r.status); cloudTeamErr = true; cloudShow(true); return; }
+      cloudTeamMsg = done; return cloudTeamLoad();
+    }, function(e){ cloudTeamMsg = cloudFailText(e); cloudTeamErr = true; cloudShow(true); });
+  }
+  function cloudTeamHtml(){
+    var me = String((cloud.sess && cloud.sess.email) || cloud.email || '').toLowerCase();
+    var roleSel = function(r, attrs){ return '<select '+attrs+'><option value="sales"'+(r === 'sales' ? ' selected' : '')+'>Sales</option><option value="admin"'+(r === 'admin' ? ' selected' : '')+'>Admin</option></select>'; };
+    var rows = cloudTeam === null ? '<p class="muted">Loading the team…</p>'
+      : '<table class="cloud-team-t"><tbody>'+cloudTeam.map(function(m){
+          var mine = m.email === me;
+          return '<tr><td class="ct-mail">'+esc(m.email)+(mine ? ' <span class="muted">(you)</span>' : '')+'</td>'
+            + '<td>'+(mine ? '<b>Admin</b>' : roleSel(m.role, 'data-team-role="'+esc(m.email)+'" aria-label="Role of '+esc(m.email)+'"'))+'</td>'
+            + '<td>'+(mine ? '' : '<button type="button" class="icon-btn" data-cloud="team-rm" data-email="'+esc(m.email)+'" title="Remove from the team" aria-label="Remove '+esc(m.email)+'">✕</button>')+'</td></tr>';
+        }).join('')+'</tbody></table>';
+    return '<div class="cloud-share cloud-team"><p class="cloud-lead"><b>Team:</b> who can sign in. <b>Admin</b> sees and changes everything. <b>Sales</b> works on orders, quotes, payments and production; they don’t see costing and profit, expenses and salaries, or Settings.</p>'
+      + rows
+      + '<form class="cloud-form" data-cloud-form="team-add" novalidate>'+cloudField('Add an e-mail', '<input type="email" id="team-email" autocomplete="off" spellcheck="false" placeholder="name@gmail.com">', true)
+      + '<label class="pq-f"><span>Role</span>'+roleSel('sales', 'id="team-role"')+'</label><button type="submit" class="btn btn-primary btn-sm">Add to the team</button></form>'
+      + '<div class="pay-add-note'+(cloudTeamErr ? ' err' : '')+'" role="status" aria-live="polite">'+esc(cloudTeamMsg)+'</div>'
+      + '<p class="field-note">Then give them a login: in Supabase, Authentication → Users → Add user, with the same e-mail and a password, and “Auto Confirm User” ticked. Send them your <b>Connect another device</b> link. Removing someone stops their access at once.</p>'
+      + '<div class="cloud-btns"><button type="button" class="link-btn" data-cloud="team">Close</button></div></div>';
+  }
+  // ---- what each role sees: Sales without costing, expenses or Settings ----
+  var ROLE_LOCK = '#qc-name, #qc-address, #qc-phone, #qc-email, #qc-gstin, #quote-terms, #qu-mm, #qu-inch, #qu-ft, #quote-rates input, #quote-rates select, #quote-rates button, #plan-capacity input, #plan-capacity select, #plan-stations input';
+  function roleLock(){
+    var on = roleSales();
+    Array.prototype.forEach.call(document.querySelectorAll(ROLE_LOCK), function(el){
+      if(on){ if(!el.dataset.roleLocked){ el.dataset.roleLocked = '1'; el.dataset.roleTitle = el.title || ''; el.disabled = true; el.title = 'Set by your Admin'; } }
+      else if(el.dataset.roleLocked){ el.disabled = false; el.title = el.dataset.roleTitle || ''; delete el.dataset.roleLocked; delete el.dataset.roleTitle; }
+    });
+  }
+  function roleApply(){
+    var b = document.body; if(!b || !b.classList) return;
+    var on = roleSales(), was = b.classList.contains('role-sales');
+    b.classList[on ? 'add' : 'remove']('role-sales');
+    roleLock();
+    if(on && roleHidden(activeTab())){ var t = document.querySelector('.tab[data-tab="home"]'); if(t && t.click) t.click(); }
+    if(was !== on){ homeSoon(); flowSoon(); if(pdfMenuOpen()) renderPdfMenu(); }
   }
   // a link that connects another device: it carries the project's address and its public key (never the password)
   function cloudLink(email){
@@ -13255,6 +13392,12 @@
       e.preventDefault();
       var f = e.target, v = function(id){ var x = f.querySelector('#'+id); return x ? String(x.value) : ''; };
       var bad = function(msg, id){ cloudSay(msg, true); var x = f.querySelector('#'+id); if(x && x.focus) x.focus(); };
+      if(f.dataset.cloudForm === 'team-add'){
+        var te = v('team-email').trim().toLowerCase(), tr = v('team-role');
+        if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(te)){ cloudTeamMsg = 'Type their e-mail.'; cloudTeamErr = true; cloudShow(true); return; }
+        cloudTeamCall('team_set', {p_email:te, p_role:tr === 'admin' ? 'admin' : 'sales'}, 'Added '+te+' as '+(tr === 'admin' ? 'Admin' : 'Sales')+'. Now give them a login in Supabase (below).');
+        return;
+      }
       if(cloudState.busy) return;
       var email = v('cloud-email').trim(), pw = v('cloud-pw');
       if(f.dataset.cloudForm === 'connect'){
@@ -13271,12 +13414,22 @@
         cloudConnect(cloud.url, cloud.key, email, pw);
       }
     });
+    el.addEventListener('change', function(e){
+      var s = e.target; if(!s || !s.dataset || s.dataset.teamRole === undefined) return;
+      cloudTeamCall('team_set', {p_email:s.dataset.teamRole, p_role:s.value === 'admin' ? 'admin' : 'sales'}, s.dataset.teamRole+' is '+(s.value === 'admin' ? 'an Admin' : 'Sales')+' now.');
+    });
     el.addEventListener('click', function(e){
       var b = e.target.closest && e.target.closest('[data-cloud]'); if(!b) return;
       var a = b.dataset.cloud;
       if(a === 'sync'){ cloudSay(''); cloudSync({pull:true, force:true}).then(function(){ if(cloudState.status === 'ok') cloudSay('Everything is up to date.'); }); }
       else if(a === 'share'){ cloudShareOpen = !cloudShareOpen; cloudShow(true); if(cloudShareOpen){ var l = document.getElementById('cloud-link'); if(l && l.select && expFinePointer()) l.select(); } }
       else if(a === 'copy-link'){ var lk = document.getElementById('cloud-link'); copyText(lk ? lk.value : '', function(ok){ cloudSay(ok ? 'Link copied — send it to your phone (WhatsApp to yourself works) and open it there.' : 'Select the link above and copy it.', !ok); }); }
+      else if(a === 'team'){ cloudTeamOpen = !cloudTeamOpen; cloudTeamMsg = ''; cloudTeamErr = false; if(cloudTeamOpen) cloudTeamLoad(); else cloudShow(true); }
+      else if(a === 'team-rm'){
+        var em = b.dataset.email;
+        pageAsk({title:'Remove from the team?', html:'<p><b>'+esc(em)+'</b> can no longer see or change the data, from now on.</p>', choices:[{key:'cancel', label:'Cancel'}, {key:'go', label:'Remove', danger:true}], focus:'cancel'})
+          .then(function(k){ if(k === 'go') cloudTeamCall('team_remove', {p_email:em}, 'Removed '+em+'.'); });
+      }
       else if(a === 'edit-cfg'){ cloud.fromLink = false; cloudSave(); cloudSay(''); cloudShow(true); }
       else if(a === 'signout') cloudSignOut();
       else if(a === 'forget') cloudForget();
@@ -13296,6 +13449,11 @@
   function cloudInit(){
     var fromLink = cloudTakeLink();
     cloud = cloudLoad(); cloudReady = true;
+    var rq = renderQuote, rp = renderPlanning;                             // what Sales may not change, locked each time it is drawn
+    renderQuote = function(){ var r = rq.apply(this, arguments); roleLock(); return r; };
+    renderPlanning = function(){ var r = rp.apply(this, arguments); roleLock(); return r; };
+    if(TAB_RENDER.quote) TAB_RENDER.quote = [renderQuote];
+    roleApply();
     if(!cloud) cloudState.status = 'off';
     else if(!cloud.sess) cloudState.status = cloud.joined ? 'signedout' : 'off';
     else if(cloud.team === false) cloudState.status = 'notteam';
@@ -13307,7 +13465,7 @@
       setTimeout(function(){ var p = document.getElementById('cloud-pw'), em = document.getElementById('cloud-email'); var f = em && !em.value ? em : p; if(f && f.focus) f.focus({preventScroll:true}); }, 400);
     }
     if(cloud && cloud.sess && cloud.team === true && !cloud.joined) cloudJoinRun();     // a join that was cut short
-    else if(cloudLive()) cloudSync({pull:true, force:true, quietIn:true});
+    else if(cloudLive()){ cloudCheckTeam().then(function(ok){ if(!ok){ cloudState.status = 'notteam'; cloudShow(true); return; } if(cloud.joined) cloudSync({pull:true, force:true, quietIn:true}); else cloudJoinRun(); }, function(){ cloudSync({pull:true, force:true, quietIn:true}); }); }
     else if(cloud && cloud.sess && cloud.team === false) cloudCheckTeam().then(function(ok){ if(ok){ cloudState.status = 'ok'; cloudShow(true); if(cloud.joined) cloudSync({pull:true, force:true}); } }).catch(function(){});
     setInterval(function(){ if(cloudLive() && document.visibilityState !== 'hidden') cloudSync({pull:true}); }, 60000);
     var back = function(){ if(cloudLive() && Date.now() - cloudState.lastPull > 10000) cloudSync({pull:true}); };
@@ -13428,7 +13586,7 @@
           empty:function(){ return expScope().length || (!expOrderMode() && staffRows(expMonth()).length) ? '' : 'No expenses '+(expOrderMode() ? 'booked to this order' : 'in '+monthName(expMonth()))+' yet — add them on the Expenses tab.'; }}
   };
   var PDF_ORDER = ['costing', 'dcosting', 'quote', 'pack', 'bom', 'cutting', 'profile', 'glass', 'mesh', 'doors', 'plan', 'payments', 'expenses'];
-  function pdfKindsNow(){ return PDF_ORDER.filter(function(k){ var P = PDF_KINDS[k]; return (!P.side || P.side === curKind()) && (!P.when || P.when()); }); }
+  function pdfKindsNow(){ return PDF_ORDER.filter(function(k){ var P = PDF_KINDS[k]; return (!P.side || P.side === curKind()) && (!P.when || P.when()) && !(roleSales() && ROLE_HIDE_PDF.indexOf(k) >= 0); }); }
   function pdfAllKinds(){ return pdfKindsNow().filter(function(k){ return !PDF_KINDS[k].combined && !PDF_KINDS[k].allOrders; }); }   // "save all": this order's sheets, each once
   // named after the order, so one order's files sort together: customer_quote-no-costing.pdf
   // (or costing-2026-10-08.pdf before a customer or quote no. is typed)

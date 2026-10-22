@@ -1799,6 +1799,12 @@
     .cloud-team-t{width:auto;}
     .cloud-team-t select{width:auto; min-width:110px;}
     .cloud-team .cloud-form{margin-bottom:6px;}
+    .cloud-team-t .btn-sm{white-space:nowrap;}
+    table.cloud-team-t{min-width:0 !important; width:auto;}
+    .cloud-steps{margin:0; padding-left:22px; max-width:78ch; line-height:1.6;}
+    .cloud-steps li{margin:0 0 8px;}
+    .cloud-steps .btn-sm{padding-top:2px; padding-bottom:2px; margin:0 2px;}
+    @media (max-width: 560px){ .cloud-team-t, .cloud-team-t tbody{display:block;} .cloud-team-t tr{display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; padding:8px 0; border-bottom:1px solid var(--border);} .cloud-team-t td{padding:0; border:0;} .cloud-team-t .ct-mail{flex:1 1 100%;} }
     /* Sales: no costing, expenses or Settings (the card to sign in stays) */
     body.role-sales .tab[data-tab="bom"], body.role-sales .tab[data-tab="doorcost"], body.role-sales .tab[data-tab="expenses"]{display:none !important;}
     body.role-sales #tab-settings > .upvc-only, body.role-sales #tab-settings > .doors-only, body.role-sales #tab-settings .panel-head .lead, body.role-sales #tab-settings .panel-head .how{display:none !important;}
@@ -13323,6 +13329,7 @@
           var mine = m.email === me;
           return '<tr><td class="ct-mail">'+esc(m.email)+(mine ? ' <span class="muted">(you)</span>' : '')+'</td>'
             + '<td>'+(mine ? '<b>Admin</b>' : roleSel(m.role, 'data-team-role="'+esc(m.email)+'" aria-label="Role of '+esc(m.email)+'"'))+'</td>'
+            + '<td>'+(mine ? '' : '<a class="btn btn-ghost btn-sm" href="'+esc(cloudWaLink(m.email))+'" target="_blank" rel="noopener" title="Send '+esc(m.email)+' their link on WhatsApp">Send link</a>')+'</td>'
             + '<td>'+(mine ? '' : '<button type="button" class="icon-btn" data-cloud="team-rm" data-email="'+esc(m.email)+'" title="Remove from the team" aria-label="Remove '+esc(m.email)+'">✕</button>')+'</td></tr>';
         }).join('')+'</tbody></table>';
     return '<div class="cloud-share cloud-team"><p class="cloud-lead"><b>Team:</b> who can sign in. <b>Admin</b> sees and changes everything. <b>Sales</b> works on orders, quotes, payments and production; they don’t see costing and profit, expenses and salaries, or Settings.</p>'
@@ -13330,7 +13337,11 @@
       + '<form class="cloud-form" data-cloud-form="team-add" novalidate>'+cloudField('Add an e-mail', '<input type="email" id="team-email" autocomplete="off" spellcheck="false" placeholder="name@gmail.com">', true)
       + '<label class="pq-f"><span>Role</span>'+roleSel('sales', 'id="team-role"')+'</label><button type="submit" class="btn btn-primary btn-sm">Add to the team</button></form>'
       + '<div class="pay-add-note'+(cloudTeamErr ? ' err' : '')+'" role="status" aria-live="polite">'+esc(cloudTeamMsg)+'</div>'
-      + '<p class="field-note">Then give them a login: in Supabase, Authentication → Users → Add user, with the same e-mail and a password, and “Auto Confirm User” ticked. Send them your <b>Connect another device</b> link. Removing someone stops their access at once.</p>'
+      + '<p class="cloud-lead" style="margin-top:12px"><b>To add a sales person:</b></p><ol class="cloud-steps">'
+      + '<li>Type their e-mail above, keep <b>Sales</b>, and press <b>Add to the team</b>.</li>'
+      + '<li>Give them a password: press <a class="btn btn-ghost btn-sm" href="'+esc(cloudUsersPage())+'" target="_blank" rel="noopener">Open Supabase users</a>, then <b>Add user → Create new user</b>. Type the same e-mail and a password for them, tick <b>Auto Confirm User</b>, and press <b>Create user</b>.</li>'
+      + '<li>Press <b>Send link</b> next to their e-mail and tell them the password. They open the link on their phone and type the password once. That’s all.</li></ol>'
+      + '<p class="field-note">Pressing ✕ takes someone off the team and stops their access at once.</p>'
       + '<div class="cloud-btns"><button type="button" class="link-btn" data-cloud="team">Close</button></div></div>';
   }
   // ---- what each role sees: Sales without costing, expenses or Settings ----
@@ -13351,6 +13362,15 @@
     if(was !== on){ homeSoon(); flowSoon(); if(pdfMenuOpen()) renderPdfMenu(); }
   }
   // a link that connects another device: it carries the project's address and its public key (never the password)
+  // a team member's own link, sent on WhatsApp: their e-mail is filled in, so they type only the password you gave them
+  function cloudWaLink(email){
+    return 'https://wa.me/?text='+encodeURIComponent('Your login for our business tool: open this link on your phone, then type the password I give you. '+cloudLink(email));
+  }
+  // the Supabase page where logins are made (Authentication → Users) for this project
+  function cloudUsersPage(){
+    var m = /^([a-z0-9]{10,40})\.supabase\.(co|in)$/i.exec(cloudHost());
+    return m ? 'https://supabase.com/dashboard/project/'+m[1].toLowerCase()+'/auth/users' : 'https://supabase.com/dashboard/projects';
+  }
   function cloudLink(email){
     var p = btoa(JSON.stringify({u:cloud.url, k:cloud.key, e:email || ''})).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     return String(location.href).split('#')[0]+'#connect='+p;
@@ -13362,7 +13382,7 @@
       + '<input type="text" class="cloud-link" id="cloud-link" readonly value="'+esc(link)+'" aria-label="Link to connect another device">'
       + '<div class="cloud-btns"><a class="btn btn-primary btn-sm" href="'+esc('https://wa.me/?text='+encodeURIComponent('Open this to connect the business tool: '+link))+'" target="_blank" rel="noopener">Send on WhatsApp</a>'
       + '<button type="button" class="btn btn-ghost btn-sm" data-cloud="copy-link">Copy link</button><button type="button" class="link-btn" data-cloud="share">Close</button></div>'
-      + '<p class="field-note">The link holds your project’s address and its public key, not your password: without your e-mail and password it opens nothing. Keep it for yourself and your team.</p></div>';
+      + '<p class="field-note">The link holds your project’s address and its public key, not your password: without your e-mail and password it opens nothing.'+(roleSales() ? '' : ' It fills in <b>your</b> e-mail, so it’s for your own devices; for a sales person, use <b>Team → Send link</b>.')+'</p></div>';
   }
   // opened from such a link: the project and key are kept, the link's part is taken off the address
   function cloudTakeLink(){
@@ -13395,7 +13415,7 @@
       if(f.dataset.cloudForm === 'team-add'){
         var te = v('team-email').trim().toLowerCase(), tr = v('team-role');
         if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(te)){ cloudTeamMsg = 'Type their e-mail.'; cloudTeamErr = true; cloudShow(true); return; }
-        cloudTeamCall('team_set', {p_email:te, p_role:tr === 'admin' ? 'admin' : 'sales'}, 'Added '+te+' as '+(tr === 'admin' ? 'Admin' : 'Sales')+'. Now give them a login in Supabase (below).');
+        cloudTeamCall('team_set', {p_email:te, p_role:tr === 'admin' ? 'admin' : 'sales'}, 'Added '+te+' as '+(tr === 'admin' ? 'Admin' : 'Sales')+'. Next: step 2 below, give them a password in Supabase.');
         return;
       }
       if(cloudState.busy) return;
